@@ -831,7 +831,9 @@ namespace dxvk {
       ENABLE_FEATURE(core.features, fillModeNonSolid, true),
       ENABLE_FEATURE(core.features, fragmentStoresAndAtomics, true),
       ENABLE_FEATURE(core.features, fullDrawIndexUint32, true),
-      ENABLE_FEATURE(core.features, geometryShader, true),
+      // Geometry shaders are unavailable on MoltenVK. Consumers that need
+      // them must check the enabled feature before using them.
+      ENABLE_FEATURE(core.features, geometryShader, false),
       ENABLE_FEATURE(core.features, imageCubeArray, true),
       ENABLE_FEATURE(core.features, independentBlend, true),
       ENABLE_FEATURE(core.features, largePoints, false),
@@ -844,7 +846,7 @@ namespace dxvk {
       ENABLE_FEATURE(core.features, sampleRateShading, true),
       ENABLE_FEATURE(core.features, samplerAnisotropy, true),
       ENABLE_FEATURE(core.features, shaderClipDistance, true),
-      ENABLE_FEATURE(core.features, shaderCullDistance, true),
+      ENABLE_FEATURE(core.features, shaderCullDistance, false),
       ENABLE_FEATURE(core.features, shaderFloat64, false),
       ENABLE_FEATURE(core.features, shaderImageGatherExtended, true),
       ENABLE_FEATURE(core.features, shaderInt16, true),
@@ -928,8 +930,10 @@ namespace dxvk {
       ENABLE_EXT_FEATURE(extCustomBorderColor, customBorderColors, false),
       ENABLE_EXT_FEATURE(extCustomBorderColor, customBorderColorWithoutFormat, false),
 
-      /* Depth clip matches D3D semantics where depth clamp does not */
-      ENABLE_EXT_FEATURE(extDepthClipEnable, depthClipEnable, true),
+      /* Depth clip matches D3D semantics where depth clamp does not.
+       * MoltenVK may not expose VK_EXT_depth_clip_enable; fall back to
+       * pipeline state handling when the feature is unavailable. */
+      ENABLE_EXT_FEATURE(extDepthClipEnable, depthClipEnable, false),
 
       /* Controls depth bias behaviour with emulated depth formats */
       ENABLE_EXT_FEATURE(extDepthBiasControl, depthBiasControl, false),
@@ -985,9 +989,9 @@ namespace dxvk {
       ENABLE_EXT_FEATURE(extPageableDeviceLocalMemory, pageableDeviceLocalMemory, false),
 
       /* Robustness, all features effectively required for correctness */
-      ENABLE_EXT_FEATURE(extRobustness2, robustBufferAccess2, true),
+      ENABLE_EXT_FEATURE(extRobustness2, robustBufferAccess2, false),
       ENABLE_EXT_FEATURE(extRobustness2, robustImageAccess2, false),
-      ENABLE_EXT_FEATURE(extRobustness2, nullDescriptor, true),
+      ENABLE_EXT_FEATURE(extRobustness2, nullDescriptor, false),
 
       /* Sample locations, used to "disable" MSAA rendering */
       ENABLE_EXT(extSampleLocations, false),

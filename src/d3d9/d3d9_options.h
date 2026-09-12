@@ -110,6 +110,10 @@ namespace dxvk {
     /// Works around a game bug in Halo CE where it gives cube textures to 2d/volume samplers
     bool forceSamplerTypeSpecConstants;
 
+    /// Use separate image bindings for each D3D9 texture type. Required by
+    /// drivers such as MoltenVK which cannot express aliased image bindings.
+    bool deAliasedSamplers;
+
     /// Forces sample rate shading
     bool forceSampleRateShading;
 

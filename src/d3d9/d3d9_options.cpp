@@ -58,6 +58,10 @@ namespace dxvk {
     this->disableA8RT                   = config.getOption<bool>        ("d3d9.disableA8RT",                   false);
     this->memoryTrackTest               = config.getOption<bool>        ("d3d9.memoryTrackTest",               false);
     this->forceSamplerTypeSpecConstants = config.getOption<bool>        ("d3d9.forceSamplerTypeSpecConstants", false);
+    Tristate deAliasSamplers            = config.getOption<Tristate>    ("d3d9.deAliasedSamplers",              Tristate::Auto);
+    this->deAliasedSamplers             = deAliasSamplers == Tristate::Auto
+      ? adapter != nullptr && adapter->matchesDriver(VK_DRIVER_ID_MOLTENVK)
+      : deAliasSamplers == Tristate::True;
     this->forceSampleRateShading        = config.getOption<bool>        ("d3d9.forceSampleRateShading",        false);
     this->forceAspectRatio              = config.getOption<std::string> ("d3d9.forceAspectRatio",              "");
     this->forceRefreshRate              = config.getOption<int32_t>     ("d3d9.forceRefreshRate",              0u);

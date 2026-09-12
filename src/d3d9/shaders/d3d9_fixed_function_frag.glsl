@@ -198,9 +198,9 @@ uniform RenderStates {
     uint packedSamplerIndices[TextureStageCount / 2u];
 };
 
-layout(set = SRV_SET, binding = SRV_PS_BASE) uniform texture2D t2d[TextureStageCount];
-layout(set = SRV_SET, binding = SRV_PS_BASE) uniform textureCube tcube[TextureStageCount];
-layout(set = SRV_SET, binding = SRV_PS_BASE) uniform texture3D t3d[TextureStageCount];
+layout(set = SRV_SET, binding = SRV_PS_BASE + 0) uniform texture2D t2d[TextureStageCount];
+layout(set = SRV_SET, binding = SRV_PS_BASE + 1) uniform textureCube tcube[TextureStageCount];
+layout(set = SRV_SET, binding = SRV_PS_BASE + 2) uniform texture3D t3d[TextureStageCount];
 
 layout(set = SAMPLER_SET, binding = 0) uniform sampler sampler_heap[];
 

@@ -1118,6 +1118,7 @@ namespace dxvk {
       options.fastFloatEmulation = m_options.d3d9FloatEmulation == D3D9FloatEmulation::Enabled;
       options.isSWVP = m_options.isSWVP && isVs;
       options.forceDynamicTextureType = m_options.forceSamplerTypeSpecConstants && !isVs;
+      options.deAliasedSamplers = m_options.deAliasedSamplers;
 
       dxbc_spv::util::ByteReader reader(m_dxbc.data(), m_dxbc.size());
 
@@ -1145,6 +1146,8 @@ namespace dxvk {
           return regIndex;
 
         case dxbc_spv::ir::ScalarType::eSrv:
+          return D3D9ShaderResourceMapping::computeImageResourceIndex(shaderType, regIndex);
+
         case dxbc_spv::ir::ScalarType::eSampler:
           return D3D9ShaderResourceMapping::computeTextureBinding(shaderType, regIndex);
 

@@ -34,9 +34,12 @@ namespace dxvk {
      * Works around a game bug in Halo CE where it gives cube textures to 2d/volume samplers
      */
     bool forceSamplerTypeSpecConstants;
+
+    /** Use de-aliased image bindings for MoltenVK-compatible drivers. */
+    bool deAliasedSamplers;
   };
 
-  static_assert(sizeof(D3D9ShaderOptions) == 3u);
+  static_assert(sizeof(D3D9ShaderOptions) == 4u);
 
   struct D3D9ShaderCreateInfo {
     DxvkIrShaderCreateInfo irCreateInfo;
@@ -68,13 +71,54 @@ namespace dxvk {
       return base + index;
     }
 
+    static constexpr uint32_t computeImageBinding(
+            D3D9ShaderType shaderType,
+            uint32_t       encodedIndex) {
+      auto base = (shaderType == D3D9ShaderType::VertexShader) ? FirstVSSamplerSlot : 0u;
+      return base + encodedIndex;
+    }
+
+    static constexpr uint32_t computeImageBinding(
+            D3D9ShaderType shaderType,
+            uint32_t       sampler,
+            uint32_t       variant) {
+      return computeImageBinding(shaderType, sampler * 3u + variant);
+    }
+
+    static constexpr uint32_t computeImageResourceIndex(
+            D3D9ShaderType shaderType,
+            uint32_t       encodedIndex) {
+      auto samplerCount = shaderType == D3D9ShaderType::VertexShader
+        ? caps::MaxTexturesVS : caps::TextureStageCount;
+      auto base = shaderType == D3D9ShaderType::VertexShader
+        ? caps::TextureStageCount * 3u : 0u;
+      auto sampler = encodedIndex / 3u;
+      auto variant = encodedIndex % 3u;
+      return base + variant * samplerCount + sampler;
+    }
+
     static constexpr uint32_t getSwvpBufferIndex() {
       return caps::MaxTextures;
     }
 
     static constexpr std::pair<VkShaderStageFlags, uint32_t> getTextureSlotInfo(uint32_t index) {
-      // Sampler slot and binding indices match 1:1, see above
+      // Image bindings use three consecutive slots per D3D9 sampler:
+      // 2D, cube, and 3D. The sampler heap remains one slot per sampler.
       return std::make_pair(IsVSSampler(index) ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT, index);
+    }
+
+    static constexpr std::pair<VkShaderStageFlags, uint32_t> getSamplerSlotInfo(uint32_t index) {
+      return std::make_pair(IsVSSampler(index) ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT,
+        computeTextureBinding(IsVSSampler(index) ? D3D9ShaderType::VertexShader : D3D9ShaderType::PixelShader,
+          IsVSSampler(index) ? index - FirstVSSamplerSlot : index));
+    }
+
+    static constexpr std::pair<VkShaderStageFlags, uint32_t> getImageSlotInfo(uint32_t index, uint32_t variant) {
+      auto isVs = IsVSSampler(index);
+      auto shader = isVs ? D3D9ShaderType::VertexShader : D3D9ShaderType::PixelShader;
+      auto sampler = isVs ? index - FirstVSSamplerSlot : index;
+      return std::make_pair(isVs ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT,
+        computeImageResourceIndex(shader, sampler * 3u + variant));
     }
   };
 

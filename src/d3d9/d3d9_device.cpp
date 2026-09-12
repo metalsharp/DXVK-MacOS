@@ -7268,7 +7268,7 @@ namespace dxvk {
           key.setViewProperties(cView->info().unpackSwizzle(), cView->info().format);
       }
 
-      auto [stage, slot] = D3D9ShaderResourceMapping::getTextureSlotInfo(cSlot);
+      auto [stage, slot] = D3D9ShaderResourceMapping::getSamplerSlotInfo(cSlot);
       ctx->bindResourceSampler(stage, slot, m_dxvkDevice->createSampler(key));
 
       // Let the main thread know about current sampler stats
@@ -7281,22 +7281,40 @@ namespace dxvk {
   void D3D9DeviceEx::BindTexture(DWORD StateSampler) {
     bool srgb = m_state.samplerStates[StateSampler][D3DSAMP_SRGBTEXTURE] & 0x1;
     D3D9CommonTexture* commonTex = GetCommonTexture(m_state.textures[StateSampler]);
+    bool deAlias = m_d3d9Options.deAliasedSamplers || !UseProgrammablePS();
+    uint32_t variant = commonTex->GetType() == D3DRTYPE_VOLUMETEXTURE ? 2u
+      : commonTex->GetType() == D3DRTYPE_CUBETEXTURE ? 1u : 0u;
 
     EmitCs([
       cSlot       = StateSampler,
-      cImageView  = commonTex->GetSampleView(srgb)
+      cImageView  = commonTex->GetSampleView(srgb),
+      cDeAlias    = deAlias,
+      cVariant    = variant
     ](DxvkContext* ctx) mutable {
-      auto [stage, slot] = D3D9ShaderResourceMapping::getTextureSlotInfo(cSlot);
-      ctx->bindResourceImageView(stage, slot, std::move(cImageView));
+      auto [stage, slot] = D3D9ShaderResourceMapping::getImageSlotInfo(cSlot, 0u);
+      if (!cDeAlias) {
+        ctx->bindResourceImageView(stage, slot, std::move(cImageView));
+      } else {
+        for (uint32_t v = 0u; v < 3u; v++) {
+          auto imageSlot = D3D9ShaderResourceMapping::getImageSlotInfo(cSlot, v).second;
+          ctx->bindResourceImageView(stage, imageSlot, v == cVariant ? std::move(cImageView) : nullptr);
+        }
+      }
     });
   }
 
 
   void D3D9DeviceEx::UnbindTextures(uint32_t mask) {
-    EmitCs([cMask = mask] (DxvkContext* ctx) {
+    bool deAlias = m_d3d9Options.deAliasedSamplers || !UseProgrammablePS();
+    EmitCs([cMask = mask, cDeAlias = deAlias] (DxvkContext* ctx) {
       for (uint32_t i : bit::BitMask(cMask)) {
-        auto [stage, slot] = D3D9ShaderResourceMapping::getTextureSlotInfo(i);
-        ctx->bindResourceImageView(stage, slot, nullptr);
+        auto [stage, slot] = D3D9ShaderResourceMapping::getImageSlotInfo(i, 0u);
+        if (!cDeAlias) {
+          ctx->bindResourceImageView(stage, slot, nullptr);
+        } else {
+          for (uint32_t v = 0u; v < 3u; v++)
+            ctx->bindResourceImageView(stage, D3D9ShaderResourceMapping::getImageSlotInfo(i, v).second, nullptr);
+        }
       }
     });
   }
@@ -7888,6 +7906,7 @@ namespace dxvk {
     m_shaderOptions.d3d9FloatEmulation = m_d3d9Options.d3d9FloatEmulation;
     m_shaderOptions.isSWVP = CanSWVP();
     m_shaderOptions.forceSamplerTypeSpecConstants = m_d3d9Options.forceSamplerTypeSpecConstants;
+    m_shaderOptions.deAliasedSamplers = m_d3d9Options.deAliasedSamplers;
   }
 
 
@@ -8829,8 +8848,9 @@ namespace dxvk {
       cSize = m_state.textures->size()
     ] (DxvkContext* ctx) {
       for (uint32_t i = 0; i < cSize; i++) {
-        auto [stage, slot] = D3D9ShaderResourceMapping::getTextureSlotInfo(i);
-        ctx->bindResourceImageView(stage, slot, nullptr);
+        auto stage = D3D9ShaderResourceMapping::getImageSlotInfo(i, 0u).first;
+        for (uint32_t v = 0u; v < 3u; v++)
+          ctx->bindResourceImageView(stage, D3D9ShaderResourceMapping::getImageSlotInfo(i, v).second, nullptr);
       }
     });
 

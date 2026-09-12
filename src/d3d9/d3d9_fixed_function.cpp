@@ -76,15 +76,22 @@ namespace dxvk {
     sharedDataBinding.access          = VK_ACCESS_SHADER_READ_BIT;
     sharedDataBinding.flags.set(DxvkDescriptorFlag::UniformBuffer);
 
-    uint32_t textureBindingId = D3D9ShaderResourceMapping::computeTextureBinding(D3D9ShaderType::PixelShader, 0u);
+    // Fixed-function shaders declare one image array for each texture type.
+    // Keeping these at separate bindings avoids MoltenVK's aliased-image
+    // limitation while retaining one sampler slot per D3D9 stage.
+    for (uint32_t variant = 0u; variant < 3u; variant++) {
+      uint32_t textureBindingId = D3D9ShaderResourceMapping::computeImageBinding(
+        D3D9ShaderType::PixelShader, 0u, variant);
 
-    auto& textureBinding = bindings.emplace_back();
-    textureBinding.set             = SrvSet;
-    textureBinding.binding         = textureBindingId;
-    textureBinding.resourceIndex   = textureBindingId;
-    textureBinding.descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    textureBinding.access          = VK_ACCESS_SHADER_READ_BIT;
-    textureBinding.descriptorCount = caps::TextureStageCount;
+      auto& textureBinding = bindings.emplace_back();
+      textureBinding.set             = SrvSet;
+      textureBinding.binding         = textureBindingId;
+      textureBinding.resourceIndex   = D3D9ShaderResourceMapping::computeImageResourceIndex(
+        D3D9ShaderType::PixelShader, variant);
+      textureBinding.descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+      textureBinding.access          = VK_ACCESS_SHADER_READ_BIT;
+      textureBinding.descriptorCount = caps::TextureStageCount;
+    }
 
     for (uint32_t i = 0; i < caps::TextureStageCount; i++) {
       uint32_t samplerBindingId = D3D9ShaderResourceMapping::computeTextureBinding(D3D9ShaderType::PixelShader, i);
