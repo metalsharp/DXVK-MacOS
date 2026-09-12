@@ -35,7 +35,7 @@ jobs:
 
       - name: Apply MoltenVK shader compiler patch
         run: |
-          git -C subprojects/dxbc-spirv apply ../patches/dxbc-spirv-moltenvk.patch
+          git -C subprojects/dxbc-spirv apply ../../patches/dxbc-spirv-moltenvk.patch
           git -C subprojects/dxbc-spirv diff --check
 
       - name: Build x86_64 Windows lane
