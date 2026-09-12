@@ -14,6 +14,10 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
+    - name: Apply MoltenVK shader compiler patch
+      shell: bash
+      run: git -C subprojects/dxbc-spirv apply ../../patches/dxbc-spirv-moltenvk.patch
+
     - name: Setup glslangValidator
       shell: pwsh
       run: |
