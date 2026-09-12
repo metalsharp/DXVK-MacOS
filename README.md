@@ -2,7 +2,7 @@
 
 A maintained macOS/Wine fork of [Gcenx/DXVK-macOS](https://github.com/Gcenx/DXVK-macOS), refreshed onto upstream [DXVK v3.1](https://github.com/doitsujin/DXVK/releases/tag/v3.1).
 
-This fork carries the MoltenVK compatibility work from Gcenx's DXVK-macOS project and ports PR #20, **“Fix D3D9 on MoltenVK: optional features + de-aliased sampler bindings,”** to the current DXVK 3.1 architecture and `dxbc-spirv` submodule.
+This fork carries the MoltenVK compatibility work from Gcenx's DXVK-macOS project and ports the current DXVK 3.1 architecture and `dxbc-spirv` submodule.
 
 ## Release contents
 
@@ -28,7 +28,7 @@ The DXVK `dxgi.dll` is a D3D8/9/10/11 lane. It must not be mixed into a VKD3D-Pr
 - Git with recursive submodule support
 - Wine import libraries and headers for the target Wine runtime
 
-The build produces Windows PE DLLs. The native macOS Vulkan/MoltenVK dependencies are loaded by Wine's Unix side and are not ARM64EC binaries.
+The build produces Windows PE DLLs. The native macOS Vulkan/MoltenVK dependencies are loaded by Wine's Unix side.
 
 ## Build from source
 
