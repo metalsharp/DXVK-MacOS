@@ -46,9 +46,9 @@ build_exes() {
 
 stage_dlls() {
   # stage DXVK PE DLLs next to the EXEs
-  local lane_dir="$1"
-  local dll64 dll32
+  local dll64
   dll64="$(ls "$BUILD"/stage/x86_64/bin/*.dll 2>/dev/null | head -1 || true)"
+  local dll64_dir
   dll64_dir="$(dirname "${dll64:-none}")"
   [ "$dll64_dir" != "none" ] || die "no built DLLs under $BUILD/stage — build DXVK first (Phase 1 build step)"
   cp "$dll64_dir"/*.dll "$BUILD/smoke/" 2>/dev/null || true

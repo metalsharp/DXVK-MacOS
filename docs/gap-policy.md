@@ -21,3 +21,19 @@
 | Dual-source blending / logicOp / independentBlend | **supported** | `dualSrcBlend=True, logicOp=True` | none |
 
 *(statuses: supported · shim · partial · fallback · best-effort · hard-gap · graceful-fail · BLOCKER)*
+
+---
+
+## Runtime validation addendum (Phase 2, P2.3–P2.8) — device-level verdicts
+
+*Under MetalSharp wine-11.17 + bundled MoltenVK, DXVK `v3.1.1-macos.0` PE DLLs:*
+
+| Lane | Device create | Clear/Present ×600 | 30-min soak | Verdict (device-level) |
+|---|---|---|---|---|
+| d3d9 (x64+i386) | ✅ | ✅ | ✅ 28 runs / 0 fail | **supported** |
+| d3d8 (x64+i386) | ✅ | ✅ | rides d3d9 | **supported** (rides d3d9 lane) |
+| d3d11+dxgi (x64+i386) | ✅ | ✅ | not soaked this phase | **supported** (device-level; soak in Phase 3) |
+
+Full-content rendering (fixed-function variety, samplers edge cases) remains
+Tier-2 pending real apps — see docs/TEST-APPS.md slots. Evidence:
+`/Volumes/AverySSD/scratch-p012/smoke-runs/` (20260921-*).

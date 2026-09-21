@@ -1411,6 +1411,14 @@ namespace dxvk {
     { R"(\\manhunt\.exe$)", {{
       { "d3d9.maxFrameRate",                 "-60" },
     }} },
+    /* Genshin Impact - glitchy rendering on      *
+     * Apple Silicon (MoltenVK); spoof AMD device *
+     * carried over from Gcenx DXVK-macOS (#11)   */
+    { R"(\\(YuanShen|GenshinImpact)\.exe$)", {{
+      { "dxgi.customDeviceDesc",          "AMD Radeon Pro 5300M"},
+      { "dxgi.customDeviceId",            "7340" },
+      { "dxgi.customVendorId",            "1002" },
+    }} },
 
   };
 
