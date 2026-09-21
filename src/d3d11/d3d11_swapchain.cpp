@@ -101,7 +101,8 @@ namespace dxvk {
     if (riid == __uuidof(IUnknown)
      || riid == __uuidof(IDXGIVkSwapChain)
      || riid == __uuidof(IDXGIVkSwapChain1)
-     || riid == __uuidof(IDXGIVkSwapChain2)) {
+     || riid == __uuidof(IDXGIVkSwapChain2)
+     || riid == __uuidof(IDXGIVkSwapChain3)) {
       *ppvObject = ref(this);
       return S_OK;
     }
@@ -193,7 +194,7 @@ namespace dxvk {
 
   HRESULT STDMETHODCALLTYPE D3D11SwapChain::SetPresentRegion(
     const RECT*                     pRegion) {
-    // TODO implement
+    Logger::err("D3D11SwapChain::SetPresentRegion: Stub");
     return E_NOTIMPL;
   }
 
@@ -347,8 +348,13 @@ namespace dxvk {
 
   void STDMETHODCALLTYPE D3D11SwapChain::GetFrameStatistics(
           DXGI_VK_FRAME_STATISTICS* pFrameStatistics) {
-    std::lock_guard<dxvk::mutex> lock(m_frameStatisticsLock);
-    *pFrameStatistics = m_frameStatistics;
+    PresenterTimingFeedback feedback = {};
+
+    if (m_presenter)
+      feedback = m_presenter->queryPresentTiming();
+
+    pFrameStatistics->PresentCount = std::max<uint64_t>(feedback.frameId, DXGI_MAX_SWAP_CHAIN_BUFFERS) - DXGI_MAX_SWAP_CHAIN_BUFFERS;
+    pFrameStatistics->PresentQPCTime = feedback.presentTime;
   }
 
 
@@ -358,6 +364,27 @@ namespace dxvk {
 
     if (m_presenter != nullptr)
       m_presenter->setFrameRateLimit(m_targetFrameRate, GetActualFrameLatency());
+  }
+
+
+  HRESULT STDMETHODCALLTYPE D3D11SwapChain::SetBackgroundColor(
+    const DXGI_RGBA*                pColor) {
+    m_clearColor.float32[0] = pColor->r;
+    m_clearColor.float32[1] = pColor->g;
+    m_clearColor.float32[2] = pColor->b;
+    m_clearColor.float32[3] = pColor->a;
+    return S_OK;
+  }
+
+
+  HRESULT STDMETHODCALLTYPE D3D11SwapChain::SetRotation(
+          DXGI_MODE_ROTATION        Rotation) {
+    if (Rotation != DXGI_MODE_ROTATION_IDENTITY) {
+      Logger::err(str::format("D3D11SwapChain::SetRotation: Rotation ", Rotation, " not supported."));
+      return E_NOTIMPL;
+    }
+
+    return S_OK;
   }
 
 
@@ -411,6 +438,11 @@ namespace dxvk {
     if (status == VK_NOT_READY)
       return DXGI_STATUS_OCCLUDED;
 
+    VkExtent2D dstSize = { backBuffer->info().extent.width, backBuffer->info().extent.height };
+
+    VkRect2D srcRect = ComputeSrcPresentRect();
+    VkRect2D dstRect = ComputeDstPresentRect(dstSize, srcRect.extent);
+
     // Incremental presentation is only supported with flip model presentation
     // on native, not 100% sure about the exact validation here.
     bool incrementalPresent = UseIncrementalPresent(pPresentParameters);
@@ -431,10 +463,13 @@ namespace dxvk {
       // Redraw everything if the HUD is active since we don't
       // keep track of the exact screen areas there. Likewise,
       // nope out if there is any scaling going on.
-      VkExtent3D swapExtent = { m_desc.Width, m_desc.Height, 1u };
+      if (!m_hasHud && dstRect.extent != srcRect.extent) {
+        VkRect2D bounds = dstRect;
+        bounds.offset.x -= srcRect.offset.x;
+        bounds.offset.y -= srcRect.offset.y;
 
-      if (!m_hasHud && backBuffer->info().extent == swapExtent )
-        dirtyRects = NormalizeDirtyRects(pPresentParameters);
+        dirtyRects = NormalizeDirtyRects(pPresentParameters, bounds);
+      }
     } else {
       // Nuke incremental present image out of existence to
       // save memory, also to pick the correct source image
@@ -466,7 +501,10 @@ namespace dxvk {
       cLatency        = m_latency,
       cColorSpace     = m_colorSpace,
       cFrameId        = m_frameId,
-      cDirtyRects     = std::move(dirtyRects)
+      cDirtyRects     = std::move(dirtyRects),
+      cClearColor     = m_clearColor,
+      cSrcRect        = srcRect,
+      cDstRect        = dstRect
     ] (DxvkContext* ctx) {
       // Update back buffer color space as necessary
       if (cSwapImage->image()->info().colorSpace != cColorSpace) {
@@ -480,9 +518,8 @@ namespace dxvk {
       // swap chain and render the HUD if we have one.
       auto contextObjects = ctx->beginExternalRendering();
 
-      cBlitter->present(contextObjects,
-        cBackBuffer, VkRect2D(),
-        cSwapImage, VkRect2D());
+      cBlitter->present(contextObjects, cClearColor,
+        cBackBuffer, cDstRect, cSwapImage, cSrcRect);
 
       // Submit current command list and present
       ctx->synchronizeWsi(cSync);
@@ -676,16 +713,11 @@ namespace dxvk {
     // Wait for the sync event so that we respect the maximum frame latency
     m_frameLatencySignal->wait(m_frameId - GetActualFrameLatency());
 
-    m_frameLatencySignal->setCallback(m_frameId, [this,
-      cFrameId           = m_frameId,
+    m_frameLatencySignal->setCallback(m_frameId, [
       cFrameLatencyEvent = m_frameLatencyEvent
     ] () {
       if (cFrameLatencyEvent)
         ReleaseSemaphore(cFrameLatencyEvent, 1, nullptr);
-
-      std::lock_guard<dxvk::mutex> lock(m_frameStatisticsLock);
-      m_frameStatistics.PresentCount = cFrameId - DXGI_MAX_SWAP_CHAIN_BUFFERS;
-      m_frameStatistics.PresentQPCTime = dxvk::high_resolution_clock::get_counter();
     });
   }
 
@@ -735,6 +767,50 @@ namespace dxvk {
     m_parent->QueryInterface(__uuidof(ID3DLowLatencyDevice), reinterpret_cast<void**>(&llDevice));
 
     return static_cast<D3D11ReflexDevice*>(llDevice.ptr());
+  }
+
+
+  VkRect2D D3D11SwapChain::ComputeSrcPresentRect() const {
+    VkRect2D rect = {};
+    rect.extent.width = m_desc.Width;
+    rect.extent.height = m_desc.Height;
+    return rect;
+  }
+
+
+  VkRect2D D3D11SwapChain::ComputeDstPresentRect(VkExtent2D DstSize, VkExtent2D SrcSize) const {
+    VkRect2D result = {};
+
+    switch (m_desc.Scaling) {
+      default:
+      case DXGI_SCALING_STRETCH: {
+        result.extent = DstSize;
+      } break;
+
+      case DXGI_SCALING_NONE: {
+        // TODO honour WS_EX_LAYOUTRTL
+        result.extent = SrcSize;
+      } break;
+
+      case DXGI_SCALING_ASPECT_RATIO_STRETCH: {
+        if (DstSize.width * SrcSize.height > SrcSize.width * DstSize.height) {
+          // Destination is wider than source, offset horizontally
+          result.extent.width = (SrcSize.width * DstSize.height) / SrcSize.height;
+          result.extent.height = DstSize.height;
+          result.offset.x = int32_t(DstSize.width - result.extent.width) / 2;
+        } else if (DstSize.width * SrcSize.height < SrcSize.width * DstSize.height) {
+          // Destination is taller than source, offset vertically
+          result.extent.width = DstSize.width;
+          result.extent.height = (SrcSize.height * DstSize.width) / SrcSize.width;
+          result.offset.y = int32_t(DstSize.height - result.extent.height) / 2;
+        } else {
+          // Aspect ratio matches, simple stretch.
+          result.extent = DstSize;
+        }
+      } break;
+    }
+
+    return result;
   }
 
 
@@ -1056,26 +1132,26 @@ namespace dxvk {
   }
 
 
-  D3D11SwapChain::DirtyRectList D3D11SwapChain::NormalizeDirtyRects(const DXGI_PRESENT_PARAMETERS* pPresentParameters) const {
+  D3D11SwapChain::DirtyRectList D3D11SwapChain::NormalizeDirtyRects(const DXGI_PRESENT_PARAMETERS* pPresentParameters, VkRect2D Bounds) const {
     DirtyRectList result;
 
     if (pPresentParameters->pScrollRect && pPresentParameters->pScrollOffset
      && (pPresentParameters->pScrollOffset->x || pPresentParameters->pScrollOffset->y))
-      AddDirtyRect(result, *pPresentParameters->pScrollRect);
+      AddDirtyRect(result, *pPresentParameters->pScrollRect, Bounds);
 
     for (uint32_t i = 0u; i < pPresentParameters->DirtyRectsCount; i++)
-      AddDirtyRect(result, pPresentParameters->pDirtyRects[i]);
+      AddDirtyRect(result, pPresentParameters->pDirtyRects[i], Bounds);
 
     return result;
   }
 
 
-  void D3D11SwapChain::AddDirtyRect(DirtyRectList& List, RECT Rect) const {
+  void D3D11SwapChain::AddDirtyRect(DirtyRectList& List, RECT Rect, VkRect2D Bounds) const {
     // Clamp rect to screen area, and ignore if the result is empty
-    Rect.left = std::max<int32_t>(Rect.left, 0);
-    Rect.top = std::max<int32_t>(Rect.top, 0);
-    Rect.right = std::min<int32_t>(Rect.right, m_desc.Width);
-    Rect.bottom = std::min<int32_t>(Rect.bottom, m_desc.Height);
+    Rect.left = std::max<int32_t>(Rect.left + Bounds.offset.x, 0);
+    Rect.top = std::max<int32_t>(Rect.top + Bounds.offset.y, 0);
+    Rect.right = std::min<int32_t>(Rect.right + Bounds.offset.x, Bounds.extent.width);
+    Rect.bottom = std::min<int32_t>(Rect.bottom + Bounds.offset.y, Bounds.extent.height);
 
     if (Rect.left >= Rect.right || Rect.top >= Rect.bottom)
       return;

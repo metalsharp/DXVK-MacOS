@@ -628,6 +628,11 @@ namespace dxvk {
 
     bool changeFullscreen = m_presentParams.Windowed != pPresentParams->Windowed;
 
+    if (m_window != pPresentParams->hDeviceWindow) {
+      m_window = pPresentParams->hDeviceWindow;
+      m_displayRefreshRateDirty = true;
+    }
+
     if (pPresentParams->Windowed) {
       if (changeFullscreen)
         this->LeaveFullscreenMode();
@@ -902,7 +907,7 @@ namespace dxvk {
         // Blit back buffer onto Vulkan swap chain
         auto contextObjects = ctx->beginExternalRendering();
 
-        cBlitter->present(contextObjects,
+        cBlitter->present(contextObjects, VkClearColorValue(),
           cDstView, cDstRect, cSrcView, cSrcRect);
 
         // Submit command list and present

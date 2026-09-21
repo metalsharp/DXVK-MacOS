@@ -14,7 +14,7 @@ namespace dxvk {
   class D3D11Device;
   class D3D11DXGIDevice;
 
-  class D3D11SwapChain : public ComObject<IDXGIVkSwapChain2> {
+  class D3D11SwapChain : public ComObject<IDXGIVkSwapChain3> {
     constexpr static uint32_t DefaultFrameLatency = 1;
   public:
 
@@ -90,6 +90,12 @@ namespace dxvk {
     void STDMETHODCALLTYPE SetTargetFrameRate(
             double                    FrameRate);
 
+    HRESULT STDMETHODCALLTYPE SetBackgroundColor(
+      const DXGI_RGBA*                pColor);
+
+    HRESULT STDMETHODCALLTYPE SetRotation(
+            DXGI_MODE_ROTATION        Rotation);
+
   private:
 
     using DirtyRectList = small_vector<VkRectLayerKHR, 4>;
@@ -134,11 +140,9 @@ namespace dxvk {
     Rc<sync::CallbackFence>   m_frameLatencySignal;
 
     VkColorSpaceKHR           m_colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    VkClearColorValue         m_clearColor = {};
 
     double                    m_targetFrameRate = 0.0;
-
-    dxvk::mutex               m_frameStatisticsLock;
-    DXGI_VK_FRAME_STATISTICS  m_frameStatistics = { };
 
     bool                      m_hasHud = false;
     Rc<hud::HudLatencyItem>   m_latencyHud;
@@ -171,6 +175,10 @@ namespace dxvk {
 
     Com<D3D11ReflexDevice> GetReflexDevice();
 
+    VkRect2D ComputeSrcPresentRect() const;
+
+    VkRect2D ComputeDstPresentRect(VkExtent2D DstSize, VkExtent2D SrcSize) const;
+
     void CompositeIncrementalPresent(
             D3D11ImmediateContext*   pContext,
       const DXGI_PRESENT_PARAMETERS* pPresentParameters);
@@ -180,9 +188,9 @@ namespace dxvk {
 
     void CreateCompositionShaders();
 
-    DirtyRectList NormalizeDirtyRects(const DXGI_PRESENT_PARAMETERS* pPresentParameters) const;
+    DirtyRectList NormalizeDirtyRects(const DXGI_PRESENT_PARAMETERS* pPresentParameters, VkRect2D Bounds) const;
 
-    void AddDirtyRect(DirtyRectList& List, RECT Rect) const;
+    void AddDirtyRect(DirtyRectList& List, RECT Rect, VkRect2D Bounds) const;
 
     std::string GetApiName() const;
 
