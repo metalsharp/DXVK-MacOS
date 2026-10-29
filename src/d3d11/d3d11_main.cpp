@@ -449,6 +449,7 @@ extern "C" {
       return S_OK;
     } catch (const DxvkError& e) {
       Logger::err("D3D11On12CreateDevice: Failed to create D3D11 device");
+      Logger::err(e.message());
       return E_FAIL;
     }
   }

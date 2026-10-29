@@ -528,6 +528,11 @@ namespace dxvk {
     const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pFullscreenDesc,
           IDXGIOutput*          pRestrictToOutput,
           IDXGISwapChain1**     ppSwapChain) {
+    // Flip-model swap chains take 2 to 16 buffers, as on Windows
+    if ((pDesc->SwapEffect == DXGI_SWAP_EFFECT_FLIP_DISCARD || pDesc->SwapEffect == DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL)
+     && (pDesc->BufferCount < 2 || pDesc->BufferCount > DXGI_MAX_SWAP_CHAIN_BUFFERS))
+      return E_INVALIDARG;
+
     // Make sure the back buffer size is not zero
     DXGI_SWAP_CHAIN_DESC1 desc = *pDesc;
 

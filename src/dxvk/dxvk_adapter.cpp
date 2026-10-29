@@ -327,6 +327,14 @@ namespace dxvk {
     Logger::info("Importing device:");
     importCaps.logDeviceInfo();
 
+    // The importing API (D3D11On12) created the device with its own feature set, so
+    // nothing has checked it against DXVK's requirements. Rendering may go wrong
+    // without them: say so instead of failing, since the device already exists.
+    std::array<char, 1024> error = { };
+
+    if (!importCaps.isSuitable(error.size(), error.data()))
+      Logger::err(str::format("DXVK: Imported device does not meet DXVK's requirements: ", error.data()));
+
     DxvkDeviceQueueMapping queueMapping = importCaps.getQueueMapping();
 
     Rc<vk::DeviceFn> vkd = new vk::DeviceFn(m_instance->vki(), false, args.device);
