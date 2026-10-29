@@ -165,6 +165,18 @@ namespace dxvk {
     this->customDeviceId = parsePciId(config.getOption<std::string>("dxgi.customDeviceId"));
     this->customDeviceDesc = config.getOption<std::string>("dxgi.customDeviceDesc", "");
 
+    // MetalSharp: METALSHARP_FSR4=1 turns on AMD FSR Upscaling 4 on any GPU (VKD3D-Proton-MacOS docs/fsr4.md).
+    // FSR's providers offer it only on an AMD GPU, so the adapter reports an RDNA 3 Navi31 (Radeon RX 7900 XTX),
+    // the GPU Wine's AMD driver data describes, unless dxgi.customVendorId or dxgi.customDeviceId say otherwise.
+    // The game sees that GPU too; its name stays the real one.
+    if (env::getEnvVar("METALSHARP_FSR4") == "1") {
+      if (this->customVendorId < 0)
+        this->customVendorId = 0x1002;
+      if (this->customDeviceId < 0)
+        this->customDeviceId = 0x744c;
+      Logger::info("DXGI: METALSHARP_FSR4: reporting an AMD Radeon RX 7900 XTX (1002:744c) for AMD FSR Upscaling 4");
+    }
+
     // Interpret the memory limits as Megabytes
     this->maxDeviceMemory = VkDeviceSize(config.getOption<int32_t>("dxgi.maxDeviceMemory", 0)) << 20;
     this->maxSharedMemory = VkDeviceSize(config.getOption<int32_t>("dxgi.maxSharedMemory", 0)) << 20;
