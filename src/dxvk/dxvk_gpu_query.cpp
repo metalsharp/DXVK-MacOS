@@ -198,6 +198,10 @@ namespace dxvk {
     if (!m_free)
       createQueryPool();
 
+    // The pool could not be created (an unsupported query type)
+    if (!m_free)
+      return nullptr;
+
     return std::exchange(m_free, m_free->m_next);
   }
 
@@ -340,6 +344,9 @@ namespace dxvk {
     const Rc<DxvkQuery>&        query) {
     Rc<DxvkGpuQuery> q = m_pool->allocQuery(query->type());
 
+    if (!q)
+      return;
+
     query->begin();
     query->addGpuQuery(q);
     query->end();
@@ -406,6 +413,10 @@ namespace dxvk {
     // a new GPU query and assign it to all virtual queries.
     if ((m_activeTypes & getQueryTypeBit(type)) && !array.queries.empty()) {
       array.gpuQuery = m_pool->allocQuery(type);
+
+      if (!array.gpuQuery)
+        return;
+
       auto handle = array.gpuQuery->getQuery();
 
       // If any active occlusion query has the precise flag set, we need

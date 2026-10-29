@@ -42,8 +42,17 @@ namespace dxvk {
         break;
       
       case D3D11_QUERY_PIPELINE_STATISTICS:
-        m_query[0] = dxvkDevice->createGpuQuery(
-          VK_QUERY_TYPE_PIPELINE_STATISTICS, 0, 0);
+        // Without the feature no query pool of this type can be created
+        // (MoltenVK); the query then reads back as all zeros.
+        if (dxvkDevice->features().core.features.pipelineStatisticsQuery) {
+          m_query[0] = dxvkDevice->createGpuQuery(
+            VK_QUERY_TYPE_PIPELINE_STATISTICS, 0, 0);
+        } else {
+          static bool s_errorShown = false;
+
+          if (!std::exchange(s_errorShown, true))
+            Logger::warn("D3D11Query: Pipeline statistics queries not supported by device, returning zeros");
+        }
         break;
       
       case D3D11_QUERY_SO_STATISTICS:
@@ -53,26 +62,22 @@ namespace dxvk {
         // FIXME it is technically incorrect to map
         // SO_OVERFLOW_PREDICATE to the first stream,
         // but this is good enough for D3D10 behaviour
-        m_query[0] = dxvkDevice->createGpuQuery(
-          VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT, 0, 0);
+        m_query[0] = CreateXfbQuery(dxvkDevice, 0);
         break;
       
       case D3D11_QUERY_SO_STATISTICS_STREAM1:
       case D3D11_QUERY_SO_OVERFLOW_PREDICATE_STREAM1:
-        m_query[0] = dxvkDevice->createGpuQuery(
-          VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT, 0, 1);
+        m_query[0] = CreateXfbQuery(dxvkDevice, 1);
         break;
       
       case D3D11_QUERY_SO_STATISTICS_STREAM2:
       case D3D11_QUERY_SO_OVERFLOW_PREDICATE_STREAM2:
-        m_query[0] = dxvkDevice->createGpuQuery(
-          VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT, 0, 2);
+        m_query[0] = CreateXfbQuery(dxvkDevice, 2);
         break;
       
       case D3D11_QUERY_SO_STATISTICS_STREAM3:
       case D3D11_QUERY_SO_OVERFLOW_PREDICATE_STREAM3:
-        m_query[0] = dxvkDevice->createGpuQuery(
-          VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT, 0, 3);
+        m_query[0] = CreateXfbQuery(dxvkDevice, 3);
         break;
       
       default:
@@ -197,7 +202,8 @@ namespace dxvk {
         break;
       
       default:
-        ctx->beginQuery(m_query[0]);
+        if (m_query[0] != nullptr)
+          ctx->beginQuery(m_query[0]);
     }
   }
   
@@ -214,13 +220,37 @@ namespace dxvk {
         break;
       
       default:
-        ctx->endQuery(m_query[0]);
+        if (m_query[0] != nullptr)
+          ctx->endQuery(m_query[0]);
     }
 
     m_resetCtr.fetch_sub(1);
   }
   
   
+  Rc<DxvkQuery> D3D11Query::CreateXfbQuery(
+    const Rc<DxvkDevice>&     device,
+          uint32_t            stream) {
+    // Stream-output queries need transform feedback queries, and streams
+    // other than 0 need geometry streams; without them the query reads
+    // back as zeros instead of using a query pool type or stream index
+    // the device does not support.
+    const auto& xfb = device->features().extTransformFeedback;
+
+    if (xfb.transformFeedback && (!stream || xfb.geometryStreams)
+     && device->properties().extTransformFeedback.transformFeedbackQueries
+     && stream < device->properties().extTransformFeedback.maxTransformFeedbackStreams)
+      return device->createGpuQuery(VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT, 0, stream);
+
+    static bool s_errorShown = false;
+
+    if (!std::exchange(s_errorShown, true))
+      Logger::warn(str::format("D3D11Query: Stream-output query for stream ", stream, " not supported by device, returning zeros"));
+
+    return nullptr;
+  }
+
+
   bool STDMETHODCALLTYPE D3D11Query::DoBegin() {
     if (!IsScoped() || m_state == D3D11_VK_QUERY_BEGUN)
       return false;

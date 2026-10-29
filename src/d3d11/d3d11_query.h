@@ -116,7 +116,11 @@ namespace dxvk {
     D3DDestructionNotifier m_destructionNotifier;
 
     UINT64 GetTimestampQueryFrequency() const;
-    
+
+    static Rc<DxvkQuery> CreateXfbQuery(
+      const Rc<DxvkDevice>&     device,
+            uint32_t            stream);
+
   };
   
 }
