@@ -2,6 +2,8 @@
 #include "d3d11_device.h"
 #include "d3d11_swapchain.h"
 
+#include "../dxvk/dxvk_metal_hud.h"
+
 #include "../dxvk/dxvk_latency_builtin.h"
 #include "../dxvk/dxvk_shader_spirv.h"
 
@@ -687,6 +689,15 @@ namespace dxvk {
 
     m_hasHud = hud && !hud->empty();
     m_blitter = new DxvkSwapchainBlitter(m_device, std::move(hud));
+
+    // The Metal HUD names feature levels as FL_11_1, as VKD3D-Proton and Mullion do
+    std::string api = GetApiName();
+    size_t fl = api.find(" FL");
+
+    if (fl != std::string::npos)
+      api.insert(fl + 3, "_");
+
+    reportMetalHud(api);
   }
 
 

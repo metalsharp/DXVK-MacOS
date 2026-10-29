@@ -5,6 +5,8 @@
 #include "d3d9_hud.h"
 #include "d3d9_window.h"
 
+#include "../dxvk/dxvk_metal_hud.h"
+
 namespace dxvk {
 
   static uint16_t MapGammaControlPoint(float x) {
@@ -1100,6 +1102,9 @@ namespace dxvk {
     }
 
     m_blitter = new DxvkSwapchainBlitter(m_device, std::move(hud));
+
+    // D3D9 and D3D8 have no feature levels: the Metal HUD shows the API (D3D9, D3D9Ex, D3D8, ...On12)
+    reportMetalHud(GetApiName());
   }
 
 
