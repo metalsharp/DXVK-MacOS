@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  LLVM_MINGW_VERSION: '20261020'
+
 jobs:
   build-cross:
     name: Build MinGW x86_64 and i386
@@ -72,4 +75,49 @@ jobs:
         with:
           name: dxvk-macos-cross-${{ github.sha }}
           path: stage/
+          if-no-files-found: error
+
+  build-arm64x:
+    name: Build ARM64X (MetalSharp Wine)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y glslang-tools meson ninja-build python3
+          curl -fsSL -o "$RUNNER_TEMP/llvm-mingw.tar.xz" \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/$LLVM_MINGW_VERSION/llvm-mingw-$LLVM_MINGW_VERSION-ucrt-ubuntu-22.04-x86_64.tar.xz"
+          tar -xf "$RUNNER_TEMP/llvm-mingw.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/llvm-mingw-$LLVM_MINGW_VERSION-ucrt-ubuntu-22.04-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: Apply MoltenVK shader compiler patch
+        run: |
+          git -C subprojects/dxbc-spirv apply ../../patches/dxbc-spirv-moltenvk.patch
+          git -C subprojects/dxbc-spirv diff --check
+
+      - name: Build ARM64X lane
+        run: |
+          meson setup build.arm64x \
+            --cross-file build-arm64x.txt \
+            --buildtype release \
+            --wrap-mode nodownload \
+            --prefix "$PWD/stage/arm64x"
+          meson compile -C build.arm64x
+          meson install -C build.arm64x
+
+      - name: Verify ARM64X
+        run: python3 tools/ci/check-arm64x.py stage/arm64x/*/*.dll
+
+      - name: Upload ARM64X artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dxvk-macos-arm64x-${{ github.sha }}
+          path: stage/arm64x/
           if-no-files-found: error

@@ -3,13 +3,15 @@ name: Capability Probe (macOS)
 on:
   push:
     paths: ["tools/probe/**", "docs/gap-policy.md"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  # GitHub's macOS runners are virtual machines with a paravirtual GPU that lacks Metal features MoltenVK needs
+  # (it stops in vkCreateInstance on newArgumentEncoderWithLayout:), so the probe fails there. It is not run on
+  # pull requests; on real Apple silicon run tools/probe/bin/probe and compare with docs/baselines.
   probe:
     name: Vulkan capability probe (macos-14, arm64)
     runs-on: macos-14

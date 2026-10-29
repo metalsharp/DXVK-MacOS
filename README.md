@@ -1,34 +1,37 @@
 # DXVK-MacOS
 
-A maintained macOS/Wine fork of [Gcenx/DXVK-macOS](https://github.com/Gcenx/DXVK-macOS), refreshed onto upstream [DXVK v3.1](https://github.com/doitsujin/DXVK/releases/tag/v3.1).
+A maintained macOS/Wine fork of [Gcenx/DXVK-macOS](https://github.com/Gcenx/DXVK-macOS), refreshed onto upstream [DXVK v3.1.1](https://github.com/doitsujin/DXVK/releases/tag/v3.1.1).
 
-This fork carries the MoltenVK compatibility work from Gcenx's DXVK-macOS project and ports the current DXVK 3.1 architecture and `dxbc-spirv` submodule.
+This fork brings Gcenx's MoltenVK compatibility work to DXVK 3.1 and its `dxbc-spirv` shader compiler. It also builds ARM64X DLLs for [MetalSharp Wine](https://github.com/metalsharp/MetalSharp-Wine) (arm64 Wine with FEX).
 
 ## Release contents
 
-The release asset contains:
+A `v*` tag builds a release (`.github/workflows/release.yml`) with four packages, each with its licenses and `SHA256SUMS`:
 
-- x86_64 and i386 Wine DLLs for D3D8, D3D9, D3D10Core, D3D11, and DXGI
-- MoltenVK and its ICD manifest
-- `libvulkan.dylib`, the Wine-compatible loader-name alias for the bundled MoltenVK library
-- `dxvk.conf` with automatic MoltenVK D3D9 de-aliased sampler support
-- The Wine Vulkan portability patch
-- Checksums, license, and runtime instructions
+- `dxvk-macos-<tag>-x86_64`: `d3d8.dll`, `d3d9.dll`, `d3d10core.dll`, `d3d11.dll` and `dxgi.dll` for x86_64 Windows programs (`x86_64-windows`)
+- `dxvk-macos-<tag>-i386`: the same for 32-bit Windows programs (`i386-windows`)
+- `dxvk-macos-<tag>-arm64x`: the same as ARM64X for an arm64 Wine that runs x86_64 programs with FEX (MetalSharp Wine). x86_64 programs load them as ARM64EC from `x86_64-windows`, so DXVK itself runs natively.
+- `moltenvk-<tag>-universal`: the universal (arm64 + x86_64), ad-hoc signed `libMoltenVK.dylib` and `MoltenVK_icd.json`. It is built by [metalsharp/VKD3D-Proton-MacOS](https://github.com/metalsharp/VKD3D-Proton-MacOS)'s `scripts/fetch-sources.sh moltenvk` and `scripts/build-moltenvk.sh --externals` at the commit the workflow pins (`VKD3D_PROTON_MACOS_REV`). That is the same MoltenVK, with the same MoltenVK and SPIRV-Cross fixes, that VKD3D-Proton-MacOS ships and MetalSharp Wine runs. DXVK 3.1 needs those fixes on Metal:
+  - workgroup sizes taken from `LocalSizeId`;
+  - runtime-sized descriptor arrays;
+  - compute shaders with groupshared memory;
+  - geometry pipelines without multisample state;
+  - geometry shader limits.
 
-The DXVK `dxgi.dll` is a D3D8/9/10/11 lane. It must not be mixed into a VKD3D-Proton D3D12 lane that uses a specialized DXGI bridge.
+Pushes and pull requests build the x86_64, i386 and ARM64X lanes in `.github/workflows/build-macos-cross.yml`. The ARM64X DLLs are checked with `tools/ci/check-arm64x.py`.
+
+The DXVK `dxgi.dll` is a D3D8/9/10/11 lane. VKD3D-Proton's D3D12 lane uses DXVK's `dxgi.dll`, `d3d11.dll` and `d3d10core.dll` for swap chains and D3D11On12. VKD3D-Proton-MacOS's arm64 release pins this fork's ARM64X build for that. Don't mix in a `dxgi.dll` from another DXVK version.
 
 ## Requirements
 
-- macOS 15 or newer
 - Meson and Ninja
-- MinGW-w64 cross-compilers:
-  - `x86_64-w64-mingw32-gcc/g++`
-  - `i686-w64-mingw32-gcc/g++`
 - `glslangValidator`
 - Git with recursive submodule support
-- Wine import libraries and headers for the target Wine runtime
+- For the x86_64 and i386 lanes, MinGW-w64 cross-compilers: `x86_64-w64-mingw32-gcc/g++` and `i686-w64-mingw32-gcc/g++`
+- For the ARM64X lane, [llvm-mingw](https://github.com/mstorsjo/llvm-mingw) (20261020 or later), with the `arm64ec-w64-mingw32` target, on `PATH`
+- At run time: MoltenVK, from the release's `moltenvk` package or a VKD3D-Proton-MacOS build. Upstream MoltenVK lacks the fixes above, and DXVK 3.1 renders parts of games wrong or not at all with it.
 
-The build produces Windows PE DLLs. The native macOS Vulkan/MoltenVK dependencies are loaded by Wine's Unix side.
+DXVK 3.1 needs Vulkan 1.3, `VK_KHR_maintenance5`, `VK_KHR_maintenance6` and `VK_KHR_load_store_op_none`. The MoltenVK above reports them on Apple silicon.
 
 ## Build from source
 
@@ -37,11 +40,11 @@ git clone --recursive https://github.com/metalsharp/DXVK-MacOS.git
 cd DXVK-MacOS
 ```
 
-The repository pins upstream DXVK v3.1 and its submodules. Apply the maintained `dxbc-spirv` compatibility patch before building:
+Apply the MoltenVK patch to the `dxbc-spirv` submodule before building:
 
 ```bash
 git submodule update --init --recursive
-git -C subprojects/dxbc-spirv apply ../patches/dxbc-spirv-moltenvk.patch
+git -C subprojects/dxbc-spirv apply ../../patches/dxbc-spirv-moltenvk.patch
 ```
 
 Build the 64-bit Windows lane:
@@ -66,7 +69,37 @@ meson compile -C build.i386
 meson install -C build.i386
 ```
 
-The cross files use the standard MinGW-w64 tool names. If the Wine import libraries are outside the compiler's normal search paths, provide them through the compiler/linker search path or adapt the Meson dependency paths for the selected Wine build.
+Build the ARM64X lane for MetalSharp Wine, with llvm-mingw on `PATH`:
+
+```bash
+meson setup build.arm64x \
+  --cross-file build-arm64x.txt \
+  --buildtype release \
+  --prefix "$PWD/stage/arm64x"
+meson compile -C build.arm64x
+meson install -C build.arm64x
+python3 tools/ci/check-arm64x.py stage/arm64x/*/*.dll
+```
+
+`build-arm64x.txt` builds with `-marm64x`. Each DLL then holds ARM64 code for arm64 programs and ARM64EC code for x86_64 programs.
+
+## MoltenVK options
+
+These `dxvk.conf` options exist only in this fork:
+
+```ini
+# Each D3D9 sampler slot gets a separate binding per texture type (2D, cube, 3D). Metal cannot
+# alias image views of different types on one binding. Auto: on with MoltenVK.
+d3d9.deAliasedSamplers = Auto
+
+# D3D9 draws that sample a bound render target read a copy of it instead. Metal has no
+# feedback loops. Auto: one copy per draw with MoltenVK. False: one copy shared between draws.
+d3d9.renderTargetHazardCopies = Auto
+```
+
+The second option ports [Gcenx/DXVK-macOS#21](https://github.com/Gcenx/DXVK-macOS/pull/21) to DXVK 3.1.
+
+On MetalSharp Wine, DXVK adds a line to the Metal performance HUD with the API, its feature level and DXVK's version. For example, `DXVK D3D11 FL_11_1 <version>`.
 
 ## Wine Vulkan portability fix
 
@@ -93,24 +126,19 @@ export WINEPREFIX=/path/to/prefix
 Keep the DXVK DLLs and MoltenVK files in the same graphics lane. Set the loader and ICD paths before launching:
 
 ```bash
-export DXVK_CONFIG_FILE=/path/to/dxvk-macos-v3.1/dxvk.conf
-export VK_ICD_FILENAMES=/path/to/dxvk-macos-v3.1/MoltenVK_icd.json
-export DYLD_LIBRARY_PATH=/path/to/dxvk-macos-v3.1
+export DXVK_CONFIG_FILE=/path/to/dxvk.conf
+export VK_ICD_FILENAMES=/path/to/moltenvk/MoltenVK_icd.json
+export DYLD_LIBRARY_PATH=/path/to/moltenvk
 export WINEDLLOVERRIDES='d3d8,d3d9,d3d10core,d3d11,dxgi=n,b'
 ```
 
-`dxvk.conf` contains:
-
-```ini
-d3d9.deAliasedSamplers = Auto
-```
-
-Use `d3d9.deAliasedSamplers = True` to force the MoltenVK-safe path or `False` for compatibility testing on drivers that support aliased image bindings.
+Copy the DLLs into the prefix's `system32` (64-bit, or ARM64X on MetalSharp Wine) and `syswow64` (i386) folders, or into the game's folder.
 
 ## Provenance
 
-- Upstream DXVK: `70d7508c01201ed3d4bfb33da42ba834eafe3857` (`v3.1`)
-- Upstream `dxbc-spirv`: `37a97745bddaf56d717253b0e4565904ce5eb06c`
+- Upstream DXVK: `v3.1.1` (`1e0f92318d6ec7b7286e050d9e24fd01a2d09c92`), merged up to master `40e01640396d03f9fddeb697f5ee00ae893ecb75`
+- Upstream `dxbc-spirv`: the submodule's pinned commit (`git ls-tree HEAD subprojects/dxbc-spirv`)
+- MoltenVK and SPIRV-Cross: [metalsharp/VKD3D-Proton-MacOS](https://github.com/metalsharp/VKD3D-Proton-MacOS) (`patches/moltenvk`, `patches/spirv-cross`)
 - Gcenx DXVK-macOS heritage: `1.10.x` branch and release history
 - Ported PR #20 commits are recorded in `patches/dxbc-spirv-moltenvk.patch` and the release README
 
