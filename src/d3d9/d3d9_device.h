@@ -940,6 +940,22 @@ namespace dxvk {
 
     void EmitFeedbackLoopBarriers();
 
+    void ResolveRenderTargetHazards(uint32_t usedSamplerMask);
+
+    Rc<DxvkImageView> GetHazardCopy(
+            DxvkContext*        ctx,
+      const Rc<DxvkImageView>&  srcView,
+            uint64_t            epoch);
+
+    void InvalidateHazardCopies() {
+      m_hazardCopyEpoch++;
+    }
+
+    bool UseRenderTargetHazardCopies() const {
+      return m_d3d9Options.renderTargetHazardCopies
+          || m_d3d9Options.sharedRenderTargetHazardCopies;
+    }
+
     void UpdateActiveFetch4(uint32_t stateSampler);
 
     void UploadManagedTexture(D3D9CommonTexture* pResource);
@@ -1638,6 +1654,24 @@ namespace dxvk {
     bool                            m_validSampleMask  = false;
 
     VkImageLayout                   m_hazardLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    // Samplers that currently have a copy of a bound render target
+    // bound instead of the render target itself (MoltenVK)
+    uint32_t                        m_hazardCopyMask = 0u;
+
+    struct D3D9HazardCopy {
+      Rc<DxvkImageView> src;
+      Rc<DxvkImageView> copy;
+      uint64_t          epoch = 0u;
+    };
+
+    // Incremented whenever a render target may have been written by anything
+    // other than a draw that samples a copy of it: shared copies are only
+    // refreshed when this changes
+    uint64_t                        m_hazardCopyEpoch = 1u;
+
+    // Only accessed on the CS thread
+    std::unordered_map<DxvkImageView*, D3D9HazardCopy> m_hazardCopies;
 
     uint32_t                        m_resetCtr = 0u;
 

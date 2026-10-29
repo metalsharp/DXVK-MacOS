@@ -62,6 +62,14 @@ namespace dxvk {
     this->deAliasedSamplers             = deAliasSamplers == Tristate::Auto
       ? adapter != nullptr && adapter->matchesDriver(VK_DRIVER_ID_MOLTENVK)
       : deAliasSamplers == Tristate::True;
+
+    // Tile-based Apple GPUs cannot read a render target that is being rendered to (pixels of
+    // neighbouring tiles may still be in tile memory: black lines along 32x32 tiles in GTA IV),
+    // and MoltenVK cannot implement the by-region barrier DXVK uses, so sample a copy instead.
+    const bool isMoltenVK = adapter != nullptr && adapter->matchesDriver(VK_DRIVER_ID_MOLTENVK);
+    Tristate hazardCopies               = config.getOption<Tristate>    ("d3d9.renderTargetHazardCopies",       Tristate::Auto);
+    this->renderTargetHazardCopies      = hazardCopies == Tristate::Auto ? isMoltenVK : hazardCopies == Tristate::True;
+    this->sharedRenderTargetHazardCopies = isMoltenVK && !this->renderTargetHazardCopies;
     this->forceSampleRateShading        = config.getOption<bool>        ("d3d9.forceSampleRateShading",        false);
     this->forceAspectRatio              = config.getOption<std::string> ("d3d9.forceAspectRatio",              "");
     this->forceRefreshRate              = config.getOption<int32_t>     ("d3d9.forceRefreshRate",              0u);

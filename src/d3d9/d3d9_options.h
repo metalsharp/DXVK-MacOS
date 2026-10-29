@@ -114,6 +114,16 @@ namespace dxvk {
     /// drivers such as MoltenVK which cannot express aliased image bindings.
     bool deAliasedSamplers;
 
+    /// Whether to sample a copy of render targets that are bound for rendering
+    /// at the same time. Required on tile-based GPUs (MoltenVK), which cannot
+    /// read a render target that the same draw writes to.
+    bool renderTargetHazardCopies;
+
+    /// Whether consecutive draws that sample a bound render target share one
+    /// copy instead of copying for each draw. Used on MoltenVK when hazard
+    /// copies are disabled, since reading the render target itself is not an option.
+    bool sharedRenderTargetHazardCopies;
+
     /// Forces sample rate shading
     bool forceSampleRateShading;
 
