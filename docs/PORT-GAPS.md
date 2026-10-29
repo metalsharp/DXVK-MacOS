@@ -20,20 +20,39 @@ upstream's strictness. A MoltenVK without them would then be rejected at device 
 Still missing in MoltenVK: graphics pipeline libraries, pipeline statistics queries, custom border colors, descriptor
 buffers, present timing, multiple transform feedback streams, and correct geometry shader limits (all reported as 0).
 
-## Needed for D3D11 and the VKD3D-Proton lane
+## D3D11 and the VKD3D-Proton lane: status
 
-| # | Item | Where | Notes |
-|---|---|---|---|
-| 1 | Pipeline-statistics query crash | `dxvk_gpu_query.cpp:195-235`, `d3d11_query.cpp:44-75` | MoltenVK fails `vkCreateQueryPool` for this type, then `allocQuery` dereferences the null pool. Guard it, and return zeros for D3D11 pipeline-statistics queries when the feature is absent |
-| 2 | D3D11On12 device check | `d3d11_main.cpp:280-454`, `dxvk_adapter.cpp:309-340` | `importDevice` wraps VKD3D-Proton's device without checking DXVK's requirements. Check them and log what is missing. VKD3D-Proton-MacOS also has to enable those features on the device it creates |
-| 3 | The VKD3D lane's DXGI fixes | VKD3D-Proton-MacOS `patches/dxvk-macos-d3d12-dxgi.patch`, its formats patch, MetalSharp DXVK `8a82645` | Flip-model buffer counts, alpha modes, formats and D3D11On12 error detail. The lane's `validate-dxgi-*.sh` scripts gate on them |
-| 4 | ARM64X build | new `build-arm64x.txt` | 1.10.3's cross file, `DXVK_ARCH_ARM64` under ARM64EC, `-marm64x` for the `dxbc-spirv` and `libdisplay-info` subprojects, and `d3d8.dll` in MetalSharp's build and staging scripts. CI currently rejects ARM binaries |
-| 5 | Geometry shader limits | MoltenVK `MVKDevice.mm:3476-3480` | The mesh-pipeline geometry shaders need real limits (D3D11 allows 1024 output vertices). Then test geometry shader draws |
-| 6 | Stream output | `d3d11_device.cpp:852` | Stream 0 is now supported, so upstream's path runs. Test it. Multi-stream stream output stays unsupported and should fail cleanly |
-| 7 | Restore upstream's requirements | `dxvk_device_info.cpp` | See above |
-| 8 | Depth clip guard | `dxvk_graphics.cpp:585-592` | Supported here, so not urgent. Chaining the depth clip struct only when the extension is enabled, with 1.10's `depthClampEnable = !depthClipEnable` otherwise, keeps other MoltenVK builds correct |
-| 9 | Feature level reporting | `d3d11_features.cpp:204-212` | FL12_1 follows from conservative rasterization plus fragment shader interlock. Check that games taking those paths render |
-| 10 | A smoke test that draws | `tools/smoke` | Today's smokes only create a device, clear and present |
+| # | Item | Status |
+|---|---|---|
+| 1 | Pipeline-statistics query crash (`dxvk_gpu_query.cpp`, `d3d11_query.cpp`) | **Done** (`faec9f8f`): such queries return zeros. Stream-output queries do the same for streams the device lacks |
+| 2 | D3D11On12 device check (`dxvk_adapter.cpp` `importDevice`) | **Done** (`93d57c74`): logs the first requirement the imported device misses. VKD3D-Proton-MacOS now enables the two it missed, `inlineUniformBlock` and `VK_KHR_load_store_op_none` |
+| 3 | The VKD3D lane's DXGI fixes (VKD3D-Proton-MacOS `patches/dxvk/0001`) | **Done** (`93d57c74`): flip-model buffer counts and the D3D11On12 error message; the other two changes are upstream |
+| 4 | ARM64X build | **Done** (`53b4318e`, `build-arm64x.txt`): dxgi, d3d11, d3d10core, d3d9 and d3d8 build as ARM64X. CI still builds only x86_64 and i386 |
+| 5 | Geometry shader limits | **Done** in MoltenVK (VKD3D-Proton-MacOS): Vulkan's minimums (256 output vertices, 1024 total components, 32 invocations) instead of 0 |
+| 6 | Stream output | **Open.** MoltenVK crashed creating the pipeline (`newMTLGeometryRenderPipelineDescriptor` read the null `pMultisampleState` of a rasterizer-discard pipeline); that is fixed in VKD3D-Proton-MacOS, but the stream output buffer stays empty. DXVK 2.7.1 on the same MoltenVK writes nothing either |
+| 7 | Restore upstream's requirements | **Done** (`d8ab94b8`) |
+| 8 | Depth clip guard | Not needed while item 7 holds: a device without `VK_EXT_depth_clip_enable` is rejected |
+| 9 | Feature level reporting | Not yet checked in games |
+| 10 | A smoke test that draws | **Done**: `tools/smoke/d3d11_draw.c` |
+
+### `tools/smoke/d3d11_draw.c` results
+
+x86_64 test program under MetalSharp Wine 4.0 with `GRAPHICS_BACKEND=vkd3d` (the VKD3D-Proton lane, where DXVK
+provides dxgi, d3d11 and d3d10core), Apple M4, 2026-10-28. "Shipped" is that lane as MetalSharp Wine 4.0 ships it
+(DXVK 2.7.1 for x86_64, MoltenVK at d1070b55); "this branch" is DXVK at this branch as ARM64X with the
+VKD3D-Proton-MacOS MoltenVK and VKD3D-Proton changes.
+
+| Test | Shipped | This branch |
+|---|---|---|
+| `draw` | pass | pass |
+| `depth_clip` | pass | pass |
+| `pipeline_stats` | crash (null query pool) | pass (zeros) |
+| `stream_output` | fail (buffer empty) | fail (buffer empty) |
+| `geometry_shader` | fail (nothing drawn) | pass |
+| `d3d11on12` | pass | pass, device meets every DXVK requirement |
+
+VKD3D-Proton's `test_draw_instanced`, `test_clear_render_target_view`, `test_fragment_coords`,
+`test_shader_instructions` and `test_geometry_shader*` give the same results on both.
 
 ## Needed later
 
