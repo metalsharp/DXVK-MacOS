@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dxvk_barrier.h"
+#include "mvk_metalfx.h"
 #include "dxvk_bind_mask.h"
 #include "dxvk_cmdlist.h"
 #include "dxvk_context_state.h"
@@ -1103,6 +1104,23 @@ namespace dxvk {
      * and updates the values if necessary.
      * \param [in] depthBounds Depth bounds
      */
+    /**
+     * \brief MetalSharp: a MetalFX scale (mvk_metalfx.h)
+     *
+     * After everything recorded before it and before everything
+     * after it, on the images of \c images (\c VK_METALFX_IMAGE_COUNT_MVK
+     * of them, null where unused), with \c info's other fields.
+     * \param [in] images The scale's images
+     * \param [in] info The scale, its images and released ids filled in here
+     * \param [in] releasedCount Scalers released since the last scale
+     * \param [in] released Their ids
+     */
+    void metalFXScale(
+      const Rc<DxvkImage>*            images,
+      const VkMetalFXScaleInfoMVK&    info,
+            size_t                    releasedCount,
+      const uint64_t*                 released);
+
     void setDepthBounds(
             DxvkDepthBounds     depthBounds);
     

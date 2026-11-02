@@ -2,6 +2,7 @@
 
 #include "dxvk_device.h"
 #include "dxvk_presenter.h"
+#include "mvk_metalfx.h"
 
 #include "../util/util_sleep.h"
 
@@ -677,6 +678,22 @@ namespace dxvk {
     if (!imageExtent.width || !imageExtent.height)
       return VK_NOT_READY;
 
+    // MetalSharp: MetalFX spatial upscaling (dxvk.conf). The swap chain keeps
+    // the back buffer's size, which MoltenVK upscales to the display's at
+    // present, instead of the window's, which the blitter would stretch to.
+    // Wine reports the window's size as the smallest and largest extent, as
+    // Windows does, and takes a smaller one, which it presents scaled.
+    VkSwapchainMetalFXSpatialCreateInfoMVK metalFXInfo = { VK_STRUCTURE_TYPE_SWAPCHAIN_METALFX_SPATIAL_CREATE_INFO_MVK };
+    bool metalFX = m_device->config().metalFXSpatialUpscale
+      && m_device->properties().vk12.driverID == VK_DRIVER_ID_MOLTENVK
+      && hasDriverInfoWord(m_device->properties().vk12.driverInfo, VK_MVK_METALFX_DRIVER_INFO)
+      && m_preferredExtent.width <= imageExtent.width && m_preferredExtent.height <= imageExtent.height;
+
+    if (metalFX) {
+      imageExtent = m_preferredExtent;
+      metalFXInfo.enable = VK_TRUE;
+    }
+
     // Select format based on swap chain properties
     if ((status = getSupportedFormats(formats)))
       return status;
@@ -863,6 +880,9 @@ namespace dxvk {
 
     if (m_device->features().nvLowLatency2)
       latencyInfo.pNext = std::exchange(swapInfo.pNext, &latencyInfo);
+
+    if (metalFX)
+      metalFXInfo.pNext = std::exchange(swapInfo.pNext, &metalFXInfo);
 
     Logger::info(str::format(
       "Presenter: Actual swapchain properties:"
@@ -1277,6 +1297,20 @@ namespace dxvk {
     
     // Guaranteed to be available
     return VK_PRESENT_MODE_FIFO_KHR;
+  }
+
+
+  bool Presenter::hasDriverInfoWord(
+    const char*                     info,
+    const char*                     word) {
+    size_t length = std::strlen(word);
+
+    for (const char* found = std::strstr(info, word); found; found = std::strstr(found + 1, word)) {
+      if ((found == info || found[-1] == ' ') && (!found[length] || found[length] == ' '))
+        return true;
+    }
+
+    return false;
   }
 
 

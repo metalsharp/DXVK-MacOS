@@ -14,6 +14,7 @@ namespace dxvk {
           DxvkCsChunkFlags        CsFlags)
   : D3D11DeviceChild<ID3D11DeviceContext4>(pParent),
     m_contextExt(GetTypedContext()),
+    m_metalFX   (GetTypedContext()),
     m_annotation(GetTypedContext(), Device),
     m_device    (Device),
     m_flags     (ContextFlags),
@@ -96,6 +97,12 @@ namespace dxvk {
     if (riid == __uuidof(ID3D11VkExtContext)
      || riid == __uuidof(ID3D11VkExtContext1)) {
       *ppvObject = ref(&m_contextExt);
+      return S_OK;
+    }
+
+    // MetalSharp: MetalFX for VKD3D-Proton-MacOS's NGX core
+    if (riid == __uuidof(ID3D11VkMetalFXContext)) {
+      *ppvObject = ref(&m_metalFX);
       return S_OK;
     }
 

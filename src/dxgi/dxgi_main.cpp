@@ -1,11 +1,14 @@
 #include "dxgi_factory.h"
 #include "dxgi_include.h"
+#include "dxgi_ngx.h"
 
 namespace dxvk {
   
   Logger Logger::s_instance("dxgi.log");
   
   HRESULT createDxgiFactory(UINT Flags, REFIID riid, void **ppFactory) {
+    InitNvidiaExtension();
+
     try {
       Com<DxgiFactory> factory = new DxgiFactory(Flags);
       HRESULT hr = factory->QueryInterface(riid, ppFactory);

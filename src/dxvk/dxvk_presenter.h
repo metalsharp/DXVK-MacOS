@@ -464,6 +464,10 @@ namespace dxvk {
       const VkPresentModeKHR*         pSupported,
             uint32_t                  syncInterval);
 
+    static bool hasDriverInfoWord(
+      const char*                     info,
+      const char*                     word);
+
     VkExtent2D pickImageExtent(
       const VkSurfaceCapabilitiesKHR& caps,
             VkExtent2D                desired);

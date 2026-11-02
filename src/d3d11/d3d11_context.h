@@ -17,6 +17,7 @@
 #include "d3d11_buffer.h"
 #include "d3d11_cmd.h"
 #include "d3d11_context_ext.h"
+#include "d3d11_metalfx.h"
 #include "d3d11_context_state.h"
 #include "d3d11_device_child.h"
 #include "d3d11_texture.h"
@@ -71,6 +72,7 @@ namespace dxvk {
     using Forwarder = D3D11ContextObjectForwarder<IsDeferred>;
 
     template<typename T> friend class D3D11DeviceContextExt;
+    template<typename T> friend class D3D11MetalFXContext;
     template<typename T> friend class D3D11UserDefinedAnnotation;
 
     // Use a local staging buffer to handle tiny uploads, most
@@ -783,6 +785,7 @@ namespace dxvk {
   protected:
 
     D3D11DeviceContextExt<ContextType>        m_contextExt;
+    D3D11MetalFXContext<ContextType>          m_metalFX;
     D3D11UserDefinedAnnotation<ContextType>   m_annotation;
 
     Rc<DxvkDevice>              m_device;

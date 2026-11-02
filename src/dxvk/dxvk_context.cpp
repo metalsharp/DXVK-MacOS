@@ -7,6 +7,7 @@
 
 #include "dxvk_device.h"
 #include "dxvk_context.h"
+#include "mvk_metalfx.h"
 
 namespace dxvk {
   
@@ -4394,6 +4395,56 @@ namespace dxvk {
   }
 
   
+  void DxvkContext::metalFXScale(
+    const Rc<DxvkImage>*            images,
+    const VkMetalFXScaleInfoMVK&    info,
+          size_t                    releasedCount,
+    const uint64_t*                 released) {
+    this->endCurrentPass(true);
+
+    small_vector<DxvkResourceAccess, VK_METALFX_IMAGE_COUNT_MVK> accessBatch;
+    VkMetalFXScaleInfoMVK scale = info;
+
+    for (uint32_t i = 0; i < VK_METALFX_IMAGE_COUNT_MVK; i++) {
+      scale.images[i] = VK_NULL_HANDLE;
+
+      if (images[i] == nullptr)
+        continue;
+
+      VkAccessFlags2 access = i == VK_METALFX_IMAGE_OUTPUT_MVK
+        ? VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
+        : VK_ACCESS_2_SHADER_READ_BIT;
+
+      accessBatch.emplace_back(*images[i], images[i]->getAvailableSubresources(),
+        VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, access, false);
+      scale.images[i] = images[i]->handle();
+    }
+
+    syncResources(DxvkCmdBuffer::ExecBuffer, accessBatch.size(), accessBatch.data());
+    flushBarriers();
+
+    scale.releaseScalerIdCount = uint32_t(releasedCount);
+    scale.pReleaseScalerIds = released;
+
+    // MoltenVK runs the scale after the barrier it is chained to; the second
+    // barrier orders it before what comes after
+    VkMemoryBarrier2 barrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    barrier.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    barrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+
+    VkDependencyInfo depInfo = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    depInfo.pNext = &scale;
+    depInfo.memoryBarrierCount = 1;
+    depInfo.pMemoryBarriers = &barrier;
+    m_cmd->cmdPipelineBarrier(DxvkCmdBuffer::ExecBuffer, &depInfo);
+
+    depInfo.pNext = nullptr;
+    m_cmd->cmdPipelineBarrier(DxvkCmdBuffer::ExecBuffer, &depInfo);
+  }
+
+
   void DxvkContext::copyImageHw(
     const Rc<DxvkImage>&        dstImage,
           VkImageSubresourceLayers dstSubresource,

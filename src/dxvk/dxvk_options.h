@@ -67,6 +67,11 @@ namespace dxvk {
     /// Allows full-screen exclusive mode on Windows
     bool allowFse = false;
 
+    /// MetalSharp: MetalFX spatial upscaling of the swap chain to the
+    /// display at present, by MoltenVK (mvk_metalfx.h). MetalSharp writes
+    /// the same d3d11.metalSpatialUpscale line here as in mullion.conf.
+    bool metalFXSpatialUpscale = false;
+
     /// Whether to enable tiler optimizations
     Tristate tilerMode = Tristate::Auto;
 

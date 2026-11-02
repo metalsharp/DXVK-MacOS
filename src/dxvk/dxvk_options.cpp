@@ -25,6 +25,7 @@ namespace dxvk {
     hideIntegratedGraphics = config.getOption<bool>   ("dxvk.hideIntegratedGraphics", false);
     zeroMappedMemory      = config.getOption<bool>    ("dxvk.zeroMappedMemory",       false);
     allowFse              = config.getOption<bool>    ("dxvk.allowFse",               false);
+    metalFXSpatialUpscale = config.getOption<bool>    ("d3d11.metalSpatialUpscale",   false);
     deviceFilter          = config.getOption<std::string>("dxvk.deviceFilter",        "");
     lowerSinCos           = config.getOption<Tristate>("dxvk.lowerSinCos",            Tristate::Auto);
     tilerMode             = config.getOption<Tristate>("dxvk.tilerMode",              Tristate::Auto);
