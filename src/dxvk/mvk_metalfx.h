@@ -7,12 +7,13 @@
  * a VkDependencyInfo and a VkSwapchainCreateInfoKHR to the driver as they are, extension chain included. So:
  *
  * - a VkMetalFXScaleInfoMVK in the pNext chain of vkCmdPipelineBarrier2's VkDependencyInfo runs a MetalFX temporal
- *   or denoised scaler after the barrier, in the command buffer's order;
+ *   or denoised scaler, or its frame interpolator, after the barrier, in the command buffer's order;
  * - a VkSwapchainMetalFXSpatialCreateInfoMVK in the pNext chain of VkSwapchainCreateInfoKHR has the swapchain's
  *   images upscaled with MetalFX's spatial scaler to the surface's native size when they are presented.
  *
  * A MoltenVK that supports them says so in VkPhysicalDeviceDriverProperties::driverInfo: the words "metalfx"
- * (temporal and spatial scalers) and "metalfx-denoised" (MetalFX's denoised scaler, macOS 26).
+ * (temporal and spatial scalers), "metalfx-denoised" (MetalFX's denoised scaler, macOS 26) and
+ * "metalfx-interpolation" (MetalFX's frame interpolator keeping its own history, macOS 27).
  *
  * This file is copied as it is into the D3D layers that use it.
  */
@@ -28,14 +29,19 @@ extern "C" {
 
 #define VK_STRUCTURE_TYPE_METALFX_SCALE_INFO_MVK ((VkStructureType)1000999100)
 #define VK_STRUCTURE_TYPE_SWAPCHAIN_METALFX_SPATIAL_CREATE_INFO_MVK ((VkStructureType)1000999101)
+#define VK_STRUCTURE_TYPE_METALFX_FRAME_INTERPOLATION_INFO_MVK ((VkStructureType)1000999102)
 
 #define VK_MVK_METALFX_DRIVER_INFO "metalfx"
 #define VK_MVK_METALFX_DENOISED_DRIVER_INFO "metalfx-denoised"
+#define VK_MVK_METALFX_INTERPOLATION_DRIVER_INFO "metalfx-interpolation"
 
 typedef enum VkMetalFXScalerTypeMVK {
 	VK_METALFX_SCALER_TYPE_NONE_MVK = 0,		/* only releases pReleaseScalerIds */
 	VK_METALFX_SCALER_TYPE_TEMPORAL_MVK = 1,	/* MTLFXTemporalScaler (DLSS Super Resolution) */
 	VK_METALFX_SCALER_TYPE_DENOISED_MVK = 2,	/* MTLFXTemporalDenoisedScaler (DLSS Ray Reconstruction) */
+	VK_METALFX_SCALER_TYPE_FRAME_INTERPOLATION_MVK = 3,	/* MTLFXFrameInterpolator (DLSS Frame Generation): the frame
+													   between the last one and the color image, with a
+													   VkMetalFXFrameInterpolationInfoMVK in pNext */
 } VkMetalFXScalerTypeMVK;
 
 /* The textures of a scale, by their index in images and formats */
@@ -51,6 +57,9 @@ typedef enum VkMetalFXImageMVK {
 	VK_METALFX_IMAGE_ROUGHNESS_MVK = 8,				/* denoised */
 	VK_METALFX_IMAGE_SPECULAR_HIT_DISTANCE_MVK = 9,	/* denoised, optional */
 	VK_METALFX_IMAGE_COUNT_MVK = 10,
+	/* Frame interpolation: color, depth, motion, output and, optionally, the UI (color and alpha) in the denoised
+	 * diffuse albedo's place. Depth and motion are at the render size, the others at the swapchain's. */
+	VK_METALFX_IMAGE_UI_MVK = VK_METALFX_IMAGE_DIFFUSE_ALBEDO_MVK,
 } VkMetalFXImageMVK;
 
 typedef enum VkMetalFXScaleFlagBitsMVK {
@@ -92,6 +101,18 @@ typedef struct VkMetalFXScaleInfoMVK {
 	uint32_t releaseScalerIdCount;
 	const uint64_t* pReleaseScalerIds;
 } VkMetalFXScaleInfoMVK;
+
+/* The camera and time of a frame interpolation (in the pNext chain of its VkMetalFXScaleInfoMVK). */
+typedef struct VkMetalFXFrameInterpolationInfoMVK {
+	VkStructureType sType;
+	const void* pNext;
+	float deltaTime;						/* seconds since the last frame */
+	float nearPlane;
+	float farPlane;
+	float fieldOfView;						/* vertical, in degrees */
+	float aspectRatio;
+	uint32_t uiComposited;					/* the UI image's contents are in the color image too */
+} VkMetalFXFrameInterpolationInfoMVK;
 
 /* MetalFX spatial upscaling at present, to the surface's native size, where that is larger than the images' */
 typedef struct VkSwapchainMetalFXSpatialCreateInfoMVK {
