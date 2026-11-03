@@ -35,7 +35,7 @@ env:
   # groupshared memory, geometry pipelines without multisample state, geometry shader limits). It is on the
   # dxvk-3.1-arm64x branch (metalsharp/VKD3D-Proton-MacOS#8): move it to main's commit once that is merged.
   VKD3D_PROTON_MACOS_REPO: metalsharp/VKD3D-Proton-MacOS
-  VKD3D_PROTON_MACOS_REV: 2f7120cee1fc0bd02dc427d74e9dd19fc0e21469
+  VKD3D_PROTON_MACOS_REV: 54537b668dad054b0bcebe7525435c84a205f014
 
 jobs:
   dlls:
