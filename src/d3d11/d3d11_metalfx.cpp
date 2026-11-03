@@ -175,13 +175,6 @@ namespace dxvk {
       info.formats[i] = MetalFXReadFormat(images[i]->info().format, i == VK_METALFX_IMAGE_MOTION_MVK);
     }
 
-    if (pDesc->MotionVectorInDisplayRes) {
-      static bool s_warned = false;
-
-      if (!std::exchange(s_warned, true))
-        Logger::warn("MetalFX: motion vectors at the output resolution are not supported yet");
-    }
-
     if (!*ppScaler)
       *ppScaler = new D3D11VkMetalFXScaler(D3D11VkMetalFXScaler::nextId());
 
@@ -189,7 +182,9 @@ namespace dxvk {
     info.scalerType = VK_METALFX_SCALER_TYPE_TEMPORAL_MVK;
     info.flags = (pDesc->AutoExposure ? VK_METALFX_SCALE_AUTO_EXPOSURE_BIT_MVK : 0u)
                | (pDesc->InReset ? VK_METALFX_SCALE_RESET_BIT_MVK : 0u)
-               | (pDesc->DepthReversed ? VK_METALFX_SCALE_DEPTH_REVERSED_BIT_MVK : 0u);
+               | (pDesc->DepthReversed ? VK_METALFX_SCALE_DEPTH_REVERSED_BIT_MVK : 0u)
+               // MoltenVK brings them to the input resolution
+               | (pDesc->MotionVectorInDisplayRes ? VK_METALFX_SCALE_MOTION_DISPLAY_RES_BIT_MVK : 0u);
     info.inputContentWidth = pDesc->InputContentWidth;
     info.inputContentHeight = pDesc->InputContentHeight;
     info.motionVectorScaleX = pDesc->MotionVectorScaleX;

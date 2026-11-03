@@ -57,6 +57,8 @@ typedef enum VkMetalFXScaleFlagBitsMVK {
 	VK_METALFX_SCALE_AUTO_EXPOSURE_BIT_MVK = 0x1,
 	VK_METALFX_SCALE_RESET_BIT_MVK = 0x2,
 	VK_METALFX_SCALE_DEPTH_REVERSED_BIT_MVK = 0x4,
+	/* The motion vectors are at the output resolution (DLSS without MV_LOWRES): they are brought to the input's. */
+	VK_METALFX_SCALE_MOTION_DISPLAY_RES_BIT_MVK = 0x8,
 } VkMetalFXScaleFlagBitsMVK;
 
 /*
