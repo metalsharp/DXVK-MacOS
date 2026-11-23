@@ -1,3 +1,8 @@
+> [!IMPORTANT]
+> **DXVK-MacOS has moved into [metalsharp/MetalVulkan](https://github.com/metalsharp/MetalVulkan)**, at `dxvk/`, with
+> its full history. Changes, issues and releases are there now (MetalVulkan 7.0 and later ship DXVK as
+> `dxvk-vX.Y-x86_64`, `-i386` and `-arm64x`). This repository is archived; its releases stay available.
+
 # DXVK-MacOS
 
 A maintained macOS/Wine fork of [Gcenx/DXVK-macOS](https://github.com/Gcenx/DXVK-macOS), refreshed onto upstream [DXVK v3.1.1](https://github.com/doitsujin/DXVK/releases/tag/v3.1.1).
